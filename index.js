@@ -15,7 +15,7 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-const logger = (req, res, next) =>{
+const logger = (req, res, next) => {
     console.log('inside the logger');
     next();
 }
@@ -24,19 +24,19 @@ const verifyToken = (req, res, next) => {
     // console.log('inside verify token middleware', req.cookies);
     const token = req?.cookies?.token;
 
-    if(!token){
-        return res.status(401).send({message: 'Unauthorized access'})
+    if (!token) {
+        return res.status(401).send({ message: 'Unauthorized access' })
     }
 
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=>{
-        if(err){
-            return res.status(401).send({message: 'Unauthorized access'})
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(401).send({ message: 'Unauthorized access' })
         }
         req.user = decoded;
         next();
     })
 
-    
+
 }
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.nweo5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -75,14 +75,39 @@ async function run() {
 
 
         // jobs related API's
-        app.get('/jobs', logger, async (req, res) => {
+        app.get('/jobs', async (req, res) => {
             console.log('now inside the api callback');
             const email = req.query.email;
+            const sort = req.query?.sort;
+            const search = req.query?.search;
+
+            const min = req.query?.min;
+            const max = req.query?.max;
+
             let query = {};
+            let sortQuery = {};
+
             if (email) {
                 query = { hr_email: email }
             }
-            const cursor = jobsCollection.find(query);
+
+            if(sort == "true"){
+                sortQuery= {"salaryRange.min" : -1}
+            }
+
+            if(search){
+                query.location= {$regex:search, $options: "i"}
+            }
+
+            if(min && max){
+                query={
+                    ...query,
+                    "salaryRange.min":{$gte: parseInt(min)},
+                    "salaryRange.max":{$lte: parseInt(max)},
+                };
+            }
+
+            const cursor = jobsCollection.find(query).sort(sortQuery);
             const result = await cursor.toArray();
             res.send(result);
         })
@@ -106,8 +131,8 @@ async function run() {
             const email = req.query.email;
             const query = { applicant_email: email }
 
-            if(req.user.email !== req.query.email){
-                return res.status(403).send({message: 'forbidden access'});
+            if (req.user.email !== req.query.email) {
+                return res.status(403).send({ message: 'forbidden access' });
             }
 
             const result = await jobApplicationCollection.find(query).toArray();
